@@ -1,0 +1,21 @@
+{
+    "name": "com.coalballcat.service",
+    "version": "1.0.0",
+    "unityRelease": "9f1",
+    "displayName": "Coal ball cat service",
+    "description": "General service.",
+    "keywords": [
+      "Services"
+    ],
+    "category": "Services",
+    "unity": "6000.2",
+    "author": {
+      "name": "coalballcatstudio",
+      "email": "watchaphon40225@gmail.com"
+    },
+    "repository": {
+      "url": "https://github.com/Watchaphon/com.teetwostudio.services.utility.git",
+      "type": "git",
+      "revision": "6b783c5dfb5a72d73e2b0a70d1caf4a367c58805"
+    }
+}
