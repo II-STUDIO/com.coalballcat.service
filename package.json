@@ -5,7 +5,7 @@
     "displayName": "Coal ball cat service",
     "description": "General service.",
     "dependencies": {
-      "com.cysharp.unitask": "2.5.10"
+      "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
     },
     "keywords": [
       "Services"
