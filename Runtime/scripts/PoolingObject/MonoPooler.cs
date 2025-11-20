@@ -5,11 +5,12 @@ using UnityEngine;
 namespace Coalballcat.Services
 {
     public class MonoPooler<T> : IDisposable, IPooler 
-        where T : MonoBehaviour 
+        where T : Component 
     {
         private readonly T prefab;
         private readonly Transform mainParent;
         private readonly Queue<T> pool;
+        private readonly List<GameObject> contein;
         private readonly bool autoExpand;
 
         public int Count => pool.Count;
@@ -23,6 +24,7 @@ namespace Coalballcat.Services
             this.mainParent = parent;
             this.autoExpand = autoExpand;
             pool = new Queue<T>(initialCapacity);
+            contein = new List<GameObject>(initialCapacity);
 
             PoolManager.Instance.InitializePooler(this);
 
@@ -42,6 +44,7 @@ namespace Coalballcat.Services
 
             T instance = UnityEngine.Object.Instantiate(prefab, targetParent);
             instance.gameObject.SetActive(false);
+            contein.Add(instance.gameObject);
             return instance;
         }
 
@@ -115,6 +118,11 @@ namespace Coalballcat.Services
             {
                 T item = pool.Dequeue();
                 item.gameObject.SetActive(true);
+
+                Transform itemTransform = item.transform;
+                if (itemTransform.parent != parent)
+                    itemTransform.SetParent(parent);
+
                 return item;
             }
         }
@@ -128,6 +136,11 @@ namespace Coalballcat.Services
                 return;
 
             item.gameObject.SetActive(false);
+
+            Transform itemTransform = item.transform;
+            if(itemTransform.parent != mainParent)
+                itemTransform.SetParent(mainParent);
+
             pool.Enqueue(item);
         }
 
@@ -136,15 +149,20 @@ namespace Coalballcat.Services
         /// </summary>
         public void Clear()
         {
-            while (pool.Count > 0)
+            int count = contein.Count;
+            for (int i = 0; i < count; i++)
             {
-                var item = pool.Dequeue();
+                var item = contein[i];
                 if (!item)
+                    continue;
+
+                if (!item.gameObject)
                     continue;
 
                 UnityEngine.Object.Destroy(item.gameObject);
             }
 
+            contein.Clear();
             pool.Clear();
         }
 
