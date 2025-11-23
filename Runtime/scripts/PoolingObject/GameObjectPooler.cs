@@ -6,8 +6,8 @@ namespace Coalballcat.Services
 {
     public class GameObjectPooler : IDisposable, IPooler
     {
-        private readonly GameObject prefab;
-        private readonly Transform mainParent;
+        private GameObject prefab;
+        private Transform mainParent;
         private readonly Queue<GameObject> pool;
         private readonly List<GameObject> contein;
         private readonly bool autoExpand;
@@ -47,17 +47,18 @@ namespace Coalballcat.Services
             return instance;
         }
 
+        #region Without_CreateNew_Flag
         /// <summary>
         /// Get an object from the pool
         /// </summary>
-        public GameObject Pool() => Pool(mainParent);
+        public GameObject Pool() => Pool(mainParent, out bool isCreateNew);
 
         /// <summary>
         /// Get an object from the pool
         /// </summary>
         public GameObject Pool(in Vector3 position)
         {
-            GameObject item = Pool(mainParent);
+            GameObject item = Pool(mainParent, out bool isCreateNew);
             item.transform.position = position;
             return item;
         }
@@ -67,7 +68,7 @@ namespace Coalballcat.Services
         /// </summary>
         public GameObject Pool(in Vector3 position, in Quaternion rotation)
         {
-            GameObject item = Pool(mainParent);
+            GameObject item = Pool(mainParent, out bool isCreateNew);
             item.transform.SetPositionAndRotation(position, rotation);
             return item;
         }
@@ -77,7 +78,7 @@ namespace Coalballcat.Services
         /// </summary>
         public GameObject Pool(in Vector3 position, Transform parent)
         {
-            GameObject item = Pool(parent);
+            GameObject item = Pool(parent, out bool isCreateNew);
             item.transform.position = position;
             return item;
         }
@@ -87,7 +88,7 @@ namespace Coalballcat.Services
         /// </summary>
         public GameObject Pool(in Vector3 position, in Quaternion rotation, Transform parent)
         {
-            GameObject item = Pool(parent);
+            GameObject item = Pool(parent, out bool isCreateNew);
             item.transform.SetPositionAndRotation(position, rotation);
             return item;
         }
@@ -95,10 +96,65 @@ namespace Coalballcat.Services
         /// <summary>
         /// Get an object from the pool
         /// </summary>
-        public GameObject Pool(Transform parent)
+        public GameObject Pool(Transform parent) => Pool(parent, out bool isCreateNew);
+        #endregion
+
+
+        #region With_CreateNew_Flag
+        /// <summary>
+        /// Get an object from the pool
+        /// </summary>
+        public GameObject Pool(out bool isCreateNew) => Pool(mainParent, out isCreateNew);
+
+        /// <summary>
+        /// Get an object from the pool
+        /// </summary>
+        public GameObject Pool(in Vector3 position, out bool isCreateNew)
+        {
+            GameObject item = Pool(mainParent, out isCreateNew);
+            item.transform.position = position;
+            return item;
+        }
+
+        /// <summary>
+        /// Get an object from the pool
+        /// </summary>
+        public GameObject Pool(in Vector3 position, in Quaternion rotation, out bool isCreateNew)
+        {
+            GameObject item = Pool(mainParent, out isCreateNew);
+            item.transform.SetPositionAndRotation(position, rotation);
+            return item;
+        }
+
+        /// <summary>
+        /// Get an object from the pool
+        /// </summary>
+        public GameObject Pool(in Vector3 position, Transform parent, out bool isCreateNew)
+        {
+            GameObject item = Pool(parent, out isCreateNew);
+            item.transform.position = position;
+            return item;
+        }
+
+        /// <summary>
+        /// Get an object from the pool
+        /// </summary>
+        public GameObject Pool(in Vector3 position, in Quaternion rotation, Transform parent, out bool isCreateNew)
+        {
+            GameObject item = Pool(parent, out isCreateNew);
+            item.transform.SetPositionAndRotation(position, rotation);
+            return item;
+        }
+
+        /// <summary>
+        /// Get an object from the pool
+        /// </summary>
+        public GameObject Pool(Transform parent, out bool isCreateNew)
         {
             if (pool.Count == 0)
             {
+                isCreateNew = true;
+
                 if (autoExpand)
                 {
                     GameObject item = CreateInstance(parent);
@@ -115,6 +171,8 @@ namespace Coalballcat.Services
             }
             else
             {
+                isCreateNew = false;
+
                 GameObject item = pool.Dequeue();
                 item.SetActive(true);
 
@@ -125,6 +183,7 @@ namespace Coalballcat.Services
                 return item;
             }
         }
+        #endregion
 
         /// <summary>
         /// Return an object to the pool
@@ -168,6 +227,9 @@ namespace Coalballcat.Services
         public void Dispose()
         {
             Clear();
+
+            prefab = null;
+            mainParent = null;
 
             PoolManager.Instance.UnitializePooler(this);
         }

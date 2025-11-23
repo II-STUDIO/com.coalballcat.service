@@ -7,8 +7,8 @@ namespace Coalballcat.Services
     public class MonoPooler<T> : IDisposable, IPooler 
         where T : Component 
     {
-        private readonly T prefab;
-        private readonly Transform mainParent;
+        private T prefab;
+        private Transform mainParent;
         private readonly Queue<T> pool;
         private readonly List<GameObject> contein;
         private readonly bool autoExpand;
@@ -169,6 +169,9 @@ namespace Coalballcat.Services
         public void Dispose()
         {
             Clear();
+
+            prefab = null;
+            mainParent = null;
 
             PoolManager.Instance.UnitializePooler(this);
         }
