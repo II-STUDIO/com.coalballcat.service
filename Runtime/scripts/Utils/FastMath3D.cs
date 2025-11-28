@@ -3,7 +3,7 @@ using Unity.Mathematics;
 
 namespace Coalballcat.Services
 {
-    public static class FastMath3
+    public static class FastMath3D
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Distance(in float3 a, in float3 b)
