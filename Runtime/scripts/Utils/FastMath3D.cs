@@ -72,5 +72,11 @@ namespace Coalballcat.Services
         {
             return direction - 2f * math.dot(direction, normal) * normal;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float SqrMagnitude(in float3 v) => math.dot(v, v);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float Magnitude(in float3 v) => math.sqrt(math.dot(v, v));
     }
 }

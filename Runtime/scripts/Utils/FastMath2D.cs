@@ -104,5 +104,11 @@ namespace Coalballcat.Services
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float2 FastClamp(float2 v, float2 min, float2 max)
             => math.clamp(v, min, max);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float SqrMagnitude(in float2 v) => math.dot(v, v);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float Magnitude(in float2 v) => math.sqrt(math.dot(v, v));
     }
 }
