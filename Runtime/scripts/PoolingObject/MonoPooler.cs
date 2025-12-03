@@ -4,13 +4,14 @@ using UnityEngine;
 
 namespace Coalballcat.Services
 {
-    public class MonoPooler<T> : IDisposable, IPooler 
-        where T : Component 
+    public class MonoPooler<T> : IDisposable, IMonoPooler 
+        where T : PoolableObject
     {
         private T prefab;
         private Transform mainParent;
         private readonly Queue<T> pool;
-        private readonly List<GameObject> contein;
+        private readonly List<T> contein;
+        private readonly HashSet<T> pooledSet; // track items currently in pool (O(1) checks)
         private readonly bool autoExpand;
 
         public int Count => pool.Count;
@@ -24,16 +25,19 @@ namespace Coalballcat.Services
             this.mainParent = parent;
             this.autoExpand = autoExpand;
             pool = new Queue<T>(initialCapacity);
-            contein = new List<GameObject>(initialCapacity);
+            contein = new List<T>(initialCapacity);
+            pooledSet = new HashSet<T>(initialCapacity);
 
             PoolManager.Instance.InitializePooler(this);
 
             if (preSpawnCount <= 0)
                 return;
 
-            for (int i = 0; i < initialCapacity; i++)
+            for (int i = 0; i < preSpawnCount; i++)
             {
-                pool.Enqueue(CreateInstance(parent));
+                var inst = CreateInstance(parent);
+                pool.Enqueue(inst);
+                pooledSet.Add(inst);
             }
         }
 
@@ -44,7 +48,8 @@ namespace Coalballcat.Services
 
             T instance = UnityEngine.Object.Instantiate(prefab, targetParent);
             instance.gameObject.SetActive(false);
-            contein.Add(instance.gameObject);
+            instance.SetPooler(this);
+            contein.Add(instance);
             return instance;
         }
 
@@ -117,6 +122,10 @@ namespace Coalballcat.Services
             else
             {
                 T item = pool.Dequeue();
+                if(item == null)
+                    return null;
+
+                pooledSet.Remove(item);
                 item.gameObject.SetActive(true);
 
                 Transform itemTransform = item.transform;
@@ -130,7 +139,7 @@ namespace Coalballcat.Services
         /// <summary>
         /// Return an object to the pool
         /// </summary>
-        public void Release(T item)
+        public void Release(PoolableObject item)
         {
             if (item == null) 
                 return;
@@ -141,7 +150,9 @@ namespace Coalballcat.Services
             if(itemTransform.parent != mainParent)
                 itemTransform.SetParent(mainParent);
 
-            pool.Enqueue(item);
+            var castT = (T)item;
+            pool.Enqueue(castT);
+            pooledSet.Add(castT);
         }
 
         /// <summary>
@@ -164,6 +175,7 @@ namespace Coalballcat.Services
 
             contein.Clear();
             pool.Clear();
+            pooledSet.Clear();
         }
 
         public void Dispose()
@@ -182,8 +194,13 @@ namespace Coalballcat.Services
         }
     }
 
-    public interface IPooler 
+    public interface IPooler
     {
         void DisposeWithoutUnitialize();
+    }
+
+    public interface IMonoPooler : IPooler
+    {
+        public void Release(PoolableObject item);
     }
 }

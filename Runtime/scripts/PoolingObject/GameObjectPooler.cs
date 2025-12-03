@@ -10,6 +10,7 @@ namespace Coalballcat.Services
         private Transform mainParent;
         private readonly Queue<GameObject> pool;
         private readonly List<GameObject> contein;
+        private readonly HashSet<GameObject> pooledSet; // track items currently in pool (O(1) checks)
         private readonly bool autoExpand;
 
         public int Count => pool.Count;
@@ -24,15 +25,19 @@ namespace Coalballcat.Services
             this.autoExpand = autoExpand;
             pool = new Queue<GameObject>(initialCapacity);
             contein = new List<GameObject>(initialCapacity);
+            pooledSet = new HashSet<GameObject>(initialCapacity);
 
             PoolManager.Instance.InitializePooler(this);
 
             if (preSpawnCount <= 0)
                 return;
 
-            for (int i = 0; i < initialCapacity; i++)
+            // use preSpawnCount (not initialCapacity) to pre-create instances
+            for (int i = 0; i < preSpawnCount; i++)
             {
-                pool.Enqueue(CreateInstance(parent));
+                var inst = CreateInstance(parent);
+                pool.Enqueue(inst);
+                pooledSet.Add(inst);
             }
         }
 
@@ -48,14 +53,8 @@ namespace Coalballcat.Services
         }
 
         #region Without_CreateNew_Flag
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool() => Pool(mainParent, out bool isCreateNew);
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position)
         {
             GameObject item = Pool(mainParent, out bool isCreateNew);
@@ -63,9 +62,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, in Quaternion rotation)
         {
             GameObject item = Pool(mainParent, out bool isCreateNew);
@@ -73,9 +69,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, Transform parent)
         {
             GameObject item = Pool(parent, out bool isCreateNew);
@@ -83,9 +76,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, in Quaternion rotation, Transform parent)
         {
             GameObject item = Pool(parent, out bool isCreateNew);
@@ -93,22 +83,13 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(Transform parent) => Pool(parent, out bool isCreateNew);
         #endregion
 
 
         #region With_CreateNew_Flag
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(out bool isCreateNew) => Pool(mainParent, out isCreateNew);
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, out bool isCreateNew)
         {
             GameObject item = Pool(mainParent, out isCreateNew);
@@ -116,9 +97,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, in Quaternion rotation, out bool isCreateNew)
         {
             GameObject item = Pool(mainParent, out isCreateNew);
@@ -126,9 +104,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, Transform parent, out bool isCreateNew)
         {
             GameObject item = Pool(parent, out isCreateNew);
@@ -136,9 +111,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(in Vector3 position, in Quaternion rotation, Transform parent, out bool isCreateNew)
         {
             GameObject item = Pool(parent, out isCreateNew);
@@ -146,9 +118,6 @@ namespace Coalballcat.Services
             return item;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
         public GameObject Pool(Transform parent, out bool isCreateNew)
         {
             if (pool.Count == 0)
@@ -174,6 +143,10 @@ namespace Coalballcat.Services
                 isCreateNew = false;
 
                 GameObject item = pool.Dequeue();
+                if(item == null)
+                    return null;
+
+                pooledSet.Remove(item); // remove from set when taken out
                 item.SetActive(true);
 
                 Transform itemTransform = item.transform;
@@ -185,29 +158,21 @@ namespace Coalballcat.Services
         }
         #endregion
 
-        /// <summary>
-        /// Return an object to the pool
-        /// </summary>
         public void Release(GameObject item)
         {
             if (item == null)
                 return;
 
-            if (pool.Contains(item))
+            // O(1) check with HashSet instead of O(n) Queue.Contains
+            if (pooledSet.Contains(item))
                 return;
 
             item.SetActive(false);
 
-            Transform itemTransform = item.transform;
-            if (itemTransform.parent != mainParent)
-                itemTransform.SetParent(mainParent);
-
             pool.Enqueue(item);
+            pooledSet.Add(item);
         }
 
-        /// <summary>
-        /// Clear all pooled objects
-        /// </summary>
         public void Clear()
         {
             int count = contein.Count;
@@ -222,6 +187,7 @@ namespace Coalballcat.Services
 
             contein.Clear();
             pool.Clear();
+            pooledSet.Clear();
         }
 
         public void Dispose()
