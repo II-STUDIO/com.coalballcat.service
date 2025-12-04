@@ -7,12 +7,14 @@ namespace Coalballcat.Services.UIs
     {
         [SerializeField] private PanelAnimation anim;
 
-        public virtual void Open()
+        public bool isOpen { get; private set; }
+
+        public void Open()
         {
             OpenAsync().Forget();
         }
 
-        public virtual void Close()
+        public void Close()
         {
             CloseAsync().Forget();
         }
@@ -26,6 +28,8 @@ namespace Coalballcat.Services.UIs
                 await anim.PlayOpenAnimation();
             }
 
+            isOpen = true;
+
             OnOpenComplete();
         }
 
@@ -37,6 +41,8 @@ namespace Coalballcat.Services.UIs
             }
 
             gameObject.SetActive(false);
+
+            isOpen = false;
 
             OnCloseComplete();
         }
