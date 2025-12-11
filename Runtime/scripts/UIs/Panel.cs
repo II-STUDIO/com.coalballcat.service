@@ -9,12 +9,12 @@ namespace Coalballcat.Services.UIs
 
         public bool isOpen { get; private set; }
 
-        public void Open()
+        public virtual void Open()
         {
             OpenAsync().Forget();
         }
 
-        public void Close()
+        public virtual void Close()
         {
             CloseAsync().Forget();
         }
