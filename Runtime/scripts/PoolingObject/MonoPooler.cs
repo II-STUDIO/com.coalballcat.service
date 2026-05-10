@@ -1,198 +1,63 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace Coalballcat.Services
 {
-    public class MonoPooler<T> : IDisposable, IMonoPooler 
-        where T : PoolableObject
+    /// <summary>
+    /// Type-safe pool for MonoBehaviours extending PoolableObject.
+    /// Adds SetPooler wiring and OnPoolGet / OnPoolRelease lifecycle hooks.
+    /// Use this when the object needs to release itself or react to pool events.
+    ///
+    /// All pool mechanics are in PoolerBase&lt;T&gt;.
+    /// This class only defines what makes a typed component different from a GameObject.
+    /// </summary>
+    public sealed class MonoPooler<T> : PoolerBase<T>, IMonoPooler where T : PoolableObject
     {
         private T prefab;
-        private Transform mainParent;
-        private readonly Queue<T> pool;
-        private readonly List<T> contein;
-        private readonly HashSet<T> pooledSet; // track items currently in pool (O(1) checks)
-        private readonly bool autoExpand;
 
-        public int Count => pool.Count;
-
-        public MonoPooler(T prefab, int initialCapacity, int preSpawnCount = 0, Transform parent = null, bool autoExpand = true)
+        public MonoPooler(T prefab, int initialCapacity, int preSpawnCount = 0,
+                          Transform parent = null, bool autoExpand = true)
+            : base(initialCapacity, parent, autoExpand)
         {
-            if (!prefab)
-                throw new NullReferenceException($"Pooler prefab is null");
-
+            if (!prefab) throw new System.NullReferenceException("MonoPooler: prefab is null");
             this.prefab = prefab;
-            this.mainParent = parent;
-            this.autoExpand = autoExpand;
-            pool = new Queue<T>(initialCapacity);
-            contein = new List<T>(initialCapacity);
-            pooledSet = new HashSet<T>(initialCapacity);
 
-            PoolManager.Instance.InitializePooler(this);
-
-            if (preSpawnCount <= 0)
-                return;
-
-            for (int i = 0; i < preSpawnCount; i++)
-            {
-                var inst = CreateInstance(parent);
-                pool.Enqueue(inst);
-                pooledSet.Add(inst);
-            }
+            // PreSpawn AFTER fields are set — never call virtual methods from a base constructor
+            if (preSpawnCount > 0) PreSpawn(preSpawnCount);
         }
 
-        private T CreateInstance(Transform targetParent)
+        protected override T CreateInstance(Transform parent)
         {
-            if (!prefab)
-                throw new NullReferenceException($"Pooler prefab is null");
-
-            T instance = UnityEngine.Object.Instantiate(prefab, targetParent);
-            instance.gameObject.SetActive(false);
-            instance.SetPooler(this);
-            contein.Add(instance);
-            return instance;
+            T inst = UnityEngine.Object.Instantiate(prefab, parent);
+            inst.gameObject.SetActive(false);
+            inst.SetPooler(this);               // wire self-release
+            return inst;
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
-        public T Pool() => Pool(mainParent);
+        protected override Transform GetTransform(T item) => item.transform;
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
-        public T Pool(in Vector3 position)
+        protected override void Activate(T item, Transform parent)
         {
-            T item = Pool(mainParent);
-            item.transform.position = position;
-            return item;
+            Transform t = item.transform;
+            if (t.parent != parent) t.SetParent(parent);
+            item.gameObject.SetActive(true);
+            item.OnPoolGet();                   // lifecycle hook
         }
 
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
-        public T Pool(in Vector3 position, in Quaternion rotation)
+        protected override void Deactivate(T item)
         {
-            T item = Pool(mainParent);
-            item.transform.SetPositionAndRotation(position, rotation);
-            return item;
-        }
-
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
-        public T Pool(in Vector3 position, Transform parent)
-        {
-            T item = Pool(parent);
-            item.transform.position = position;
-            return item;
-        }
-
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
-        public T Pool(in Vector3 position, in Quaternion rotation, Transform parent)
-        {
-            T item = Pool(parent);
-            item.transform.SetPositionAndRotation(position, rotation);
-            return item;
-        }
-
-        /// <summary>
-        /// Get an object from the pool
-        /// </summary>
-        public T Pool(Transform parent)
-        {
-            if (pool.Count == 0)
-            {
-                if (autoExpand)
-                {
-                    T item = CreateInstance(parent);
-                    if (!item)
-                        return null;
-
-                    item.gameObject.SetActive(true);
-                    return item;
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Pool exhausted and autoExpand of <{prefab.name}> is not allowed!");
-                }
-            }
-            else
-            {
-                T item = pool.Dequeue();
-                if(item == null)
-                    return null;
-
-                pooledSet.Remove(item);
-                item.gameObject.SetActive(true);
-
-                Transform itemTransform = item.transform;
-                if (itemTransform.parent != parent)
-                    itemTransform.SetParent(parent);
-
-                return item;
-            }
-        }
-
-        /// <summary>
-        /// Return an object to the pool
-        /// </summary>
-        public void Release(PoolableObject item)
-        {
-            if (item == null) 
-                return;
-
+            item.OnPoolRelease();               // lifecycle hook before deactivate
             item.gameObject.SetActive(false);
-
-            Transform itemTransform = item.transform;
-            if(itemTransform.parent != mainParent)
-                itemTransform.SetParent(mainParent);
-
-            var castT = (T)item;
-            pool.Enqueue(castT);
-            pooledSet.Add(castT);
+            Transform t = item.transform;
+            if (t.parent != mainParent) t.SetParent(mainParent);
         }
 
-        /// <summary>
-        /// Clear all pooled objects
-        /// </summary>
-        public void Clear()
-        {
-            int count = contein.Count;
-            for (int i = 0; i < count; i++)
-            {
-                var item = contein[i];
-                if (!item)
-                    continue;
+        protected override void DestroyItem(T item) => UnityEngine.Object.Destroy(item.gameObject);
 
-                if (!item.gameObject)
-                    continue;
-
-                UnityEngine.Object.Destroy(item.gameObject);
-            }
-
-            contein.Clear();
-            pool.Clear();
-            pooledSet.Clear();
-        }
-
-        public void Dispose()
-        {
-            Clear();
-
-            prefab = null;
-            mainParent = null;
-
-            PoolManager.Instance.UnitializePooler(this);
-        }
-
-        public void DisposeWithoutUnitialize()
-        {
-            Clear();
-        }
+        // IMonoPooler — accepts base type so PoolableObject.ReturnPool() can call in
+        public void Release(PoolableObject item) => ReleaseCore((T)item);
     }
+
+    // ── Interfaces ────────────────────────────────────────────────────────────
 
     public interface IPooler
     {
@@ -201,6 +66,6 @@ namespace Coalballcat.Services
 
     public interface IMonoPooler : IPooler
     {
-        public void Release(PoolableObject item);
+        void Release(PoolableObject item);
     }
 }

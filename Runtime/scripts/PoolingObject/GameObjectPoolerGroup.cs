@@ -1,248 +1,79 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Coalballcat.Services
 {
-    public class GameObjectPoolerGroup : IDisposable
+    /// <summary>
+    /// Multi-prefab pool for plain GameObjects.
+    /// Because a plain GameObject has no self-knowledge of its pool,
+    /// this class maintains an instance-ID → prefab map for TryRelease routing.
+    /// </summary>
+    public sealed class GameObjectPoolerGroup : PoolerGroupBase<GameObject, GameObjectPooler>
     {
-        private readonly Dictionary<GameObject, GameObjectPooler> poolers;
-        private readonly Dictionary<int, GameObject> prefabConnection;
-        private readonly List<int> instanceTemp;
-        private readonly Transform parent;
-        private int initialCapacity;
+        // Maps GetInstanceID() → prefab so TryRelease can find the right pooler.
+        private readonly Dictionary<int, GameObject> prefabByInstanceId;
+        private readonly List<int> instanceIdTemp;  // scratch list, avoids alloc in RemoveRecords
 
         public GameObjectPoolerGroup(int initialCapacity, Transform parent = null)
+            : base(initialCapacity, parent)
         {
-            poolers = new Dictionary<GameObject, GameObjectPooler>();
-            prefabConnection = new Dictionary<int, GameObject>();
-            instanceTemp = new List<int>(initialCapacity * 2);
-            this.parent = parent;
-            this.initialCapacity = initialCapacity;
+            prefabByInstanceId = new Dictionary<int, GameObject>();
+            instanceIdTemp     = new List<int>(initialCapacity * 2);
         }
 
-        private GameObjectPooler GetPooler(GameObject prefab)
+        // ── Hooks ─────────────────────────────────────────────────────────────
+
+        protected override GameObjectPooler CreatePooler(GameObject prefab)
+            => new GameObjectPooler(prefab, initialCapacity, parent: parent, autoExpand: true);
+
+        /// <summary>Register every pooled instance — not just newly created ones.</summary>
+        protected override void OnInstancePooled(GameObject prefab, GameObject instance)
+            => prefabByInstanceId[instance.GetInstanceID()] = prefab;
+
+        /// <summary>Clean up instance records when a pooler is being disposed.</summary>
+        protected override void OnPoolerReleasing(GameObject prefab)
+            => RemoveInstanceRecordsForPrefab(prefab);
+
+        // ── Release ──────────────────────────────────────────────────────────
+
+        /// <summary>Return an instance to its pool. Returns false if unknown to this group.</summary>
+        public bool TryRelease(GameObject instance)
         {
-            if (!poolers.TryGetValue(prefab, out GameObjectPooler pooler))
-            {
-                pooler = CreatePooler(prefab);
-                poolers.Add(prefab, pooler);
-            }
-
-            if (pooler == null)
-            {
-                pooler = CreatePooler(prefab);
-                poolers[prefab] = pooler;
-            }
-
-            return pooler;
+            int id = instance.GetInstanceID();
+            if (!prefabByInstanceId.TryGetValue(id, out GameObject prefab)) return false;
+            GetOrCreatePooler(prefab).Release(instance);
+            return true;
         }
 
-        private GameObjectPooler CreatePooler(GameObject prefab)
+        /// <summary>Overload that skips GetInstanceID() if you already cached it.</summary>
+        public bool TryRelease(GameObject instance, int cachedInstanceId)
         {
-            return new GameObjectPooler(prefab, initialCapacity, parent: parent, autoExpand: true);
+            if (!prefabByInstanceId.TryGetValue(cachedInstanceId, out GameObject prefab)) return false;
+            GetOrCreatePooler(prefab).Release(instance);
+            return true;
         }
 
-        
-        private void AppyReference(GameObject prefab, GameObject instance, bool isCreateNew)
+        // ── Cleanup override ─────────────────────────────────────────────────
+
+        public new void Dispose()
         {
-            if (isCreateNew)
-                prefabConnection[instance.GetInstanceID()] = prefab;
+            base.Dispose();
+            prefabByInstanceId.Clear();
+            instanceIdTemp.Clear();
         }
 
-        #region without_isCreateNew_flag
-        public GameObject Pool(GameObject prefab)
+        // ── Helpers ───────────────────────────────────────────────────────────
+
+        private void RemoveInstanceRecordsForPrefab(GameObject prefab)
         {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(out bool isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
+            foreach (var kv in prefabByInstanceId)
+                if (kv.Value == prefab) instanceIdTemp.Add(kv.Key);
 
-
-
-        public GameObject Pool(GameObject prefab, Transform parent)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(parent, out bool isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position, out bool isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, in Quaternion rotation)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position, rotation, out bool isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, Transform parent)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position, parent, out bool isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, in Quaternion rotation, Transform parent)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position,rotation,parent, out bool isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-        #endregion
-
-
-        #region with_isCreateNew_flag
-        public GameObject Pool(GameObject prefab, out bool isCreateNew)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(out isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, Transform parent, out bool isCreateNew)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(parent,out isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, out bool isCreateNew)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position,out isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, in Quaternion rotation, out bool isCreateNew)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position, rotation, out isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, Transform parent, out bool isCreateNew)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position, parent, out isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-
-        public GameObject Pool(GameObject prefab, in Vector3 position, in Quaternion rotation, Transform parent, out bool isCreateNew)
-        {
-            GameObjectPooler pooler = GetPooler(prefab);
-            GameObject instance = pooler.Pool(position, rotation, parent, out isCreateNew);
-            AppyReference(prefab, instance, isCreateNew);
-            return instance;
-        }
-        #endregion
-
-        public bool TryRelease(GameObject pool)
-        {
-            int id = pool.GetInstanceID();
-            if(prefabConnection.TryGetValue(id, out GameObject prefab))
-            {
-                GameObjectPooler pooler = GetPooler(prefab);
-                pooler.Release(pool);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        public bool TryRelease(GameObject pool, int id)
-        {
-            if (prefabConnection.TryGetValue(id, out GameObject prefab))
-            {
-                GameObjectPooler pooler = GetPooler(prefab);
-                pooler.Release(pool);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        public bool TryReleasePooler(GameObject prefab)
-        {
-            if(poolers.TryGetValue(prefab, out GameObjectPooler pooler))
-            {
-                ReleasePrefabConnect(prefab);
-
-                pooler.Dispose();
-                poolers.Remove(prefab);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        private void ReleasePrefabConnect(GameObject prefab)
-        {
-            foreach (var kv in prefabConnection)
-            {
-                if (kv.Value == prefab)
-                {
-                    instanceTemp.Add(kv.Key);
-                }
-            }
-
-            int count = instanceTemp.Count;
-
-            if (count == 0)
-                return;
-
+            int count = instanceIdTemp.Count;
             for (int i = 0; i < count; i++)
-            {
-                int instance = instanceTemp[i];
-                prefabConnection.Remove(instance);
-            }
+                prefabByInstanceId.Remove(instanceIdTemp[i]);
 
-            instanceTemp.Clear();
-        }
-
-        public void Clear()
-        {
-            var values = poolers.Values;
-            foreach (var pooler in values)
-            {
-                pooler.Clear();
-            }
-
-            instanceTemp.Clear();
-        }
-
-        public void Dispose()
-        {
-            var values = poolers.Values;
-            foreach (var pooler in values)
-            {
-                pooler.Dispose();
-            }
-
-            poolers.Clear();
-            prefabConnection.Clear();
-            instanceTemp.Clear();
+            instanceIdTemp.Clear();
         }
     }
 }

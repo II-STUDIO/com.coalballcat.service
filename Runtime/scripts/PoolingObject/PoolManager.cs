@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -8,13 +7,12 @@ namespace Coalballcat.Services
     {
         private readonly List<IPooler> poolers = new(100);
 
-        public void DestoryAll()
+        /// <summary>Destroy all pooled objects and clear every registered pooler.</summary>
+        public void DestroyAll()
         {
-            for(int i = 0; i < poolers.Count; i++)
-            {
-                var pooler = poolers[i];
-                pooler.DisposeWithoutUnitialize();
-            }
+            int count = poolers.Count;
+            for (int i = 0; i < count; i++)
+                poolers[i].DisposeWithoutUnitialize();
 
             poolers.Clear();
         }
@@ -24,7 +22,7 @@ namespace Coalballcat.Services
             poolers.AddUnique(pooler);
         }
 
-        public void UnitializePooler(IPooler pooler)
+        public void UninitializePooler(IPooler pooler)
         {
             poolers.FastRemove(pooler);
         }
