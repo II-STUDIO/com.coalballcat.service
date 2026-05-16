@@ -43,6 +43,7 @@ namespace Coalballcat.Services
                 T inst = CreateInstance(mainParent);
                 pool.Enqueue(inst);
                 pooledSet.Add(inst);
+                container.Add(inst);
             }
         }
 
@@ -66,6 +67,7 @@ namespace Coalballcat.Services
 
                 T newItem = CreateInstance(parent);
                 if (newItem == null) return null;
+                container.Add(newItem);
                 Activate(newItem, parent);
                 return newItem;
             }
@@ -86,6 +88,14 @@ namespace Coalballcat.Services
             Deactivate(item);
             pool.Enqueue(item);
             pooledSet.Add(item);
+        }
+
+        public void ReleaseAll()
+        {
+            for(int i = 0; i < container.Count; i++)
+            {
+                ReleaseCore(container[i]);
+            }
         }
 
         // ── Public overloads — defined once for all poolers ──────────────────

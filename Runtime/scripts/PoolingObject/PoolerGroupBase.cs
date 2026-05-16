@@ -149,13 +149,21 @@ namespace Coalballcat.Services
         // ── Pooler management ─────────────────────────────────────────────────
 
         /// <summary>Dispose the pooler for one prefab and destroy all its instances.</summary>
-        public bool TryReleasePooler(T prefab)
+        public bool TryDisposePooler(T prefab)
         {
             if (!poolers.TryGetValue(prefab, out TPooler pooler)) return false;
             OnPoolerReleasing(prefab);      // let derived class clean up its side-data
             pooler.Dispose();
             poolers.Remove(prefab);
             return true;
+        }
+
+        public void ReleaseAll()
+        {
+            foreach( var pooler in poolers.Values)
+            {
+                pooler.ReleaseAll();
+            }
         }
 
         // ── Cleanup ───────────────────────────────────────────────────────────
