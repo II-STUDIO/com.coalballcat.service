@@ -13,7 +13,7 @@ namespace Coalballcat.Services
     {
         private GameObject prefab;
 
-        public GameObjectPooler(GameObject prefab, int initialCapacity, int preSpawnCount = 0,
+        public GameObjectPooler(GameObject prefab, int initialCapacity = 0, int preSpawnCount = 0,
                                 Transform parent = null, bool autoExpand = true)
             : base(initialCapacity, parent, autoExpand)
         {

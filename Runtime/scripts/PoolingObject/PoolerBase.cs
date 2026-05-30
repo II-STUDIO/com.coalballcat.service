@@ -4,10 +4,6 @@ using UnityEngine;
 
 namespace Coalballcat.Services
 {
-    /// <summary>
-    /// All shared pool mechanics live here — Queue, HashSet, List, overloads, PoolManager wiring.
-    /// Derived classes only implement what makes them different (4 abstract methods).
-    /// </summary>
     public abstract class PoolerBase<T> : IDisposable, IPooler where T : UnityEngine.Object
     {
         protected Transform mainParent;
@@ -18,12 +14,11 @@ namespace Coalballcat.Services
 
         public int PooledCount => pool.Count;
         public int TotalCount  => container.Count;
-
-        // ── Constructor ───────────────────────────────────────────────────────
+        public int ActiveCount => container.Count - pool.Count;
 
         protected PoolerBase(int initialCapacity, Transform parent, bool autoExpand)
         {
-            mainParent    = parent;
+            mainParent      = parent;
             this.autoExpand = autoExpand;
             pool      = new Queue<T>(initialCapacity);
             container = new List<T>(initialCapacity);
@@ -32,22 +27,21 @@ namespace Coalballcat.Services
         }
 
         /// <summary>
-        /// Call this at the END of the derived constructor (after all fields are set),
-        /// so CreateInstance() can safely access derived-class fields like 'prefab'.
-        /// Do NOT call virtual methods from a base constructor.
+        /// Call at the END of the derived constructor after all fields are set.
+        /// Never call abstract/virtual methods from a base constructor.
         /// </summary>
         protected void PreSpawn(int count)
         {
             for (int i = 0; i < count; i++)
             {
                 T inst = CreateInstance(mainParent);
+                container.Add(inst);
                 pool.Enqueue(inst);
                 pooledSet.Add(inst);
-                container.Add(inst);
             }
         }
 
-        // ── Template methods — derived classes define these ───────────────────
+        // ── Template methods ──────────────────────────────────────────────────
 
         protected abstract T         CreateInstance(Transform parent);
         protected abstract Transform GetTransform(T item);
@@ -55,7 +49,7 @@ namespace Coalballcat.Services
         protected abstract void      Deactivate(T item);
         protected abstract void      DestroyItem(T item);
 
-        // ── Core logic — one implementation for both poolers ─────────────────
+        // ── Core ──────────────────────────────────────────────────────────────
 
         protected T PoolCore(Transform parent)
         {
@@ -66,14 +60,14 @@ namespace Coalballcat.Services
                         $"{GetType().Name}: pool exhausted and autoExpand is disabled.");
 
                 T newItem = CreateInstance(parent);
-                if (newItem == null) return null;
+                if (!newItem) return null;
                 container.Add(newItem);
                 Activate(newItem, parent);
                 return newItem;
             }
 
             T item = pool.Dequeue();
-            if (item == null) return null;      // destroyed externally — caller should retry or handle
+            if (!item) return null;     // destroyed externally
 
             pooledSet.Remove(item);
             Activate(item, parent);
@@ -82,7 +76,7 @@ namespace Coalballcat.Services
 
         protected void ReleaseCore(T item)
         {
-            if (item == null) return;
+            if (!item) return;
             if (pooledSet.Contains(item)) return;   // double-release guard
 
             Deactivate(item);
@@ -90,30 +84,73 @@ namespace Coalballcat.Services
             pooledSet.Add(item);
         }
 
-        public void ReleaseAll()
-        {
-            for(int i = 0; i < container.Count; i++)
-            {
-                ReleaseCore(container[i]);
-            }
-        }
-
-        // ── Public overloads — defined once for all poolers ──────────────────
+        // ── Public overloads ──────────────────────────────────────────────────
 
         public T Pool()                                                               => PoolCore(mainParent);
         public T Pool(Transform parent)                                               => PoolCore(parent);
-        public T Pool(in Vector3 position)                                            { var i = PoolCore(mainParent); GetTransform(i).position = position; return i; }
-        public T Pool(in Vector3 position, in Quaternion rotation)                    { var i = PoolCore(mainParent); GetTransform(i).SetPositionAndRotation(position, rotation); return i; }
-        public T Pool(in Vector3 position, Transform parent)                          { var i = PoolCore(parent);     GetTransform(i).position = position; return i; }
-        public T Pool(in Vector3 position, in Quaternion rotation, Transform parent)  { var i = PoolCore(parent);     GetTransform(i).SetPositionAndRotation(position, rotation); return i; }
 
-        // With isNew flag (useful in group poolers to track new instances)
+        // FIX: guard null before accessing transform — PoolCore can return null
+        // if an object was destroyed externally while sitting in the queue.
+        public T Pool(in Vector3 position)
+        {
+            var i = PoolCore(mainParent);
+            if (i) GetTransform(i).position = position;
+            return i;
+        }
+
+        public T Pool(in Vector3 position, in Quaternion rotation)
+        {
+            var i = PoolCore(mainParent);
+            if (i) GetTransform(i).SetPositionAndRotation(position, rotation);
+            return i;
+        }
+
+        public T Pool(in Vector3 position, Transform parent)
+        {
+            var i = PoolCore(parent);
+            if (i) GetTransform(i).position = position;
+            return i;
+        }
+
+        public T Pool(in Vector3 position, in Quaternion rotation, Transform parent)
+        {
+            var i = PoolCore(parent);
+            if (i) GetTransform(i).SetPositionAndRotation(position, rotation);
+            return i;
+        }
+
+        // With isNew flag ──────────────────────────────────────────────────────
+
         public T Pool(out bool isNew)                                                              => PoolWithFlag(mainParent, out isNew);
         public T Pool(Transform parent, out bool isNew)                                            => PoolWithFlag(parent, out isNew);
-        public T Pool(in Vector3 position, out bool isNew)                                         { var i = PoolWithFlag(mainParent, out isNew); GetTransform(i).position = position; return i; }
-        public T Pool(in Vector3 position, in Quaternion rotation, out bool isNew)                 { var i = PoolWithFlag(mainParent, out isNew); GetTransform(i).SetPositionAndRotation(position, rotation); return i; }
-        public T Pool(in Vector3 position, Transform parent, out bool isNew)                       { var i = PoolWithFlag(parent, out isNew);     GetTransform(i).position = position; return i; }
-        public T Pool(in Vector3 position, in Quaternion rotation, Transform parent, out bool isNew){ var i = PoolWithFlag(parent, out isNew);     GetTransform(i).SetPositionAndRotation(position, rotation); return i; }
+
+        public T Pool(in Vector3 position, out bool isNew)
+        {
+            var i = PoolWithFlag(mainParent, out isNew);
+            if (i) GetTransform(i).position = position;
+            return i;
+        }
+
+        public T Pool(in Vector3 position, in Quaternion rotation, out bool isNew)
+        {
+            var i = PoolWithFlag(mainParent, out isNew);
+            if (i) GetTransform(i).SetPositionAndRotation(position, rotation);
+            return i;
+        }
+
+        public T Pool(in Vector3 position, Transform parent, out bool isNew)
+        {
+            var i = PoolWithFlag(parent, out isNew);
+            if (i) GetTransform(i).position = position;
+            return i;
+        }
+
+        public T Pool(in Vector3 position, in Quaternion rotation, Transform parent, out bool isNew)
+        {
+            var i = PoolWithFlag(parent, out isNew);
+            if (i) GetTransform(i).SetPositionAndRotation(position, rotation);
+            return i;
+        }
 
         private T PoolWithFlag(Transform parent, out bool isNew)
         {
@@ -121,7 +158,16 @@ namespace Coalballcat.Services
             return PoolCore(parent);
         }
 
-        // ── Cleanup ──────────────────────────────────────────────────────────
+        // ── Bulk ─────────────────────────────────────────────────────────────
+
+        public void ReleaseAll()
+        {
+            int count = container.Count;
+            for (int i = 0; i < count; i++)
+                ReleaseCore(container[i]);
+        }
+
+        // ── Cleanup ───────────────────────────────────────────────────────────
 
         public void Clear()
         {
@@ -133,7 +179,8 @@ namespace Coalballcat.Services
             pooledSet.Clear();
         }
 
-        public void Dispose()
+        // FIX: virtual so derived classes can properly override (not hide with 'new')
+        public virtual void Dispose()
         {
             Clear();
             mainParent = null;
