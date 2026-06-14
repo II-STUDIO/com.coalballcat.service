@@ -1,130 +1,134 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using UnityEngine;
 
 namespace Coalballcat.Services
 {
+    /// <summary>
+    /// Lightweight AES-based string encryption helper for local save data.
+    /// Layout of the Base64 payload: [16-byte salt][16-byte IV][ciphertext].
+    ///
+    /// This is convenience obfuscation for on-device data, NOT a substitute for
+    /// server-side validation of anything security-critical.
+    /// </summary>
     public static class Cryptor
     {
-        // This constant is used to determine the keysize of the encryption algorithm in bits.
-        // We divide this by 8 within the code below to get the equivalent number of bytes.
-        private const int Keysize = 256;
+        private const int KeySizeBits = 256;
+        private const int SaltSizeBytes = 16;
+        private const int IvSizeBytes = 16; // AES block size is always 128 bits.
+        private const int DefaultIterations = 10_000;
 
-        // This constant determines the number of iterations for the password bytes generation function.
-        private const int DerivationIterations = 1000;
-
-        public static string Encrypt(string plainText, string passPhrase, int keySize = Keysize, int derivationIterations = DerivationIterations)
+        public static string Encrypt(string plainText, string passPhrase, int derivationIterations = DefaultIterations)
         {
             if (string.IsNullOrEmpty(plainText))
             {
-                Debug.LogErrorFormat("Encrypt 'plaintText' value can't be null or empty");
+                Debug.LogError("[Cryptor] Encrypt: 'plainText' cannot be null or empty.");
                 return string.Empty;
             }
 
             if (string.IsNullOrEmpty(passPhrase))
             {
-                Debug.LogErrorFormat("Encrypt 'passPhrase' value can't be null or empty");
+                Debug.LogError("[Cryptor] Encrypt: 'passPhrase' cannot be null or empty.");
                 return string.Empty;
             }
 
-            // Salt and IV is randomly generated each time, but is preprended to encrypted cipher text
-            // so that the same Salt and IV values can be used when decrypting.  
-            var saltStringBytes = Generate256BitsOfRandomEntropy();
-            var ivStringBytes = Generate256BitsOfRandomEntropy();
-            var plainTextBytes = Encoding.UTF8.GetBytes(plainText);
-            using (var password = new Rfc2898DeriveBytes(passPhrase, saltStringBytes, derivationIterations))
+            try
             {
-                var keyBytes = password.GetBytes(keySize / 8);
-                using (var symmetricKey = new RijndaelManaged())
+                byte[] salt = GenerateRandomBytes(SaltSizeBytes);
+                byte[] iv = GenerateRandomBytes(IvSizeBytes);
+                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+
+                using var keyDerivation = new Rfc2898DeriveBytes(
+                    passPhrase, salt, derivationIterations, HashAlgorithmName.SHA256);
+                byte[] key = keyDerivation.GetBytes(KeySizeBits / 8);
+
+                using var aes = Aes.Create();
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using var encryptor = aes.CreateEncryptor(key, iv);
+                using var memoryStream = new MemoryStream();
+
+                // Prepend salt + IV so they're available for decryption.
+                memoryStream.Write(salt, 0, salt.Length);
+                memoryStream.Write(iv, 0, iv.Length);
+
+                using (var cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
                 {
-                    symmetricKey.BlockSize = 256;
-                    symmetricKey.Mode = CipherMode.CBC;
-                    symmetricKey.Padding = PaddingMode.PKCS7;
-                    using (var encryptor = symmetricKey.CreateEncryptor(keyBytes, ivStringBytes))
-                    {
-                        using (var memoryStream = new MemoryStream())
-                        {
-                            using (var cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                            {
-                                cryptoStream.Write(plainTextBytes, 0, plainTextBytes.Length);
-                                cryptoStream.FlushFinalBlock();
-                                // Create the final bytes as a concatenation of the random salt bytes, the random iv bytes and the cipher bytes.
-                                var cipherTextBytes = saltStringBytes;
-                                cipherTextBytes = cipherTextBytes.Concat(ivStringBytes).ToArray();
-                                cipherTextBytes = cipherTextBytes.Concat(memoryStream.ToArray()).ToArray();
-                                memoryStream.Close();
-                                cryptoStream.Close();
-                                return Convert.ToBase64String(cipherTextBytes);
-                            }
-                        }
-                    }
+                    cryptoStream.Write(plainBytes, 0, plainBytes.Length);
+                    cryptoStream.FlushFinalBlock();
                 }
+
+                return Convert.ToBase64String(memoryStream.ToArray());
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Cryptor] Encrypt failed: {e.Message}");
+                return string.Empty;
             }
         }
 
-        public static string Decrypt(string cipherText, string passPhrase, int keySize = Keysize, int derivationIterations = DerivationIterations)
+        public static string Decrypt(string cipherText, string passPhrase, int derivationIterations = DefaultIterations)
         {
             if (string.IsNullOrEmpty(cipherText))
             {
-                Debug.LogErrorFormat("Decrypt 'cipherText' value can't be null or empty");
+                Debug.LogError("[Cryptor] Decrypt: 'cipherText' cannot be null or empty.");
                 return string.Empty;
             }
 
             if (string.IsNullOrEmpty(passPhrase))
             {
-                Debug.LogErrorFormat("Decrypt 'passPhrase' value can't be null or empty");
+                Debug.LogError("[Cryptor] Decrypt: 'passPhrase' cannot be null or empty.");
                 return string.Empty;
             }
 
-            int count = keySize / 8;
-            // Get the complete stream of bytes that represent:
-            // [32 bytes of Salt] + [32 bytes of IV] + [n bytes of CipherText]
-            var cipherTextBytesWithSaltAndIv = Convert.FromBase64String(cipherText);
-
-            // Get the saltbytes by extracting the first 32 bytes from the supplied cipherText bytes.
-            var saltStringBytes = cipherTextBytesWithSaltAndIv.Take(count).ToArray();
-
-            // Get the IV bytes by extracting the next 32 bytes from the supplied cipherText bytes.
-            var ivStringBytes = cipherTextBytesWithSaltAndIv.Skip(count).Take(count).ToArray();
-
-            // Get the actual cipher text bytes by removing the first 64 bytes from the cipherText string.
-            var cipherTextBytes = cipherTextBytesWithSaltAndIv.Skip(count * 2).Take(cipherTextBytesWithSaltAndIv.Length - (count * 2)).ToArray();
-
-            using (var password = new Rfc2898DeriveBytes(passPhrase, saltStringBytes, derivationIterations))
+            try
             {
-                var keyBytes = password.GetBytes(count);
-                using (var symmetricKey = new RijndaelManaged())
+                byte[] payload = Convert.FromBase64String(cipherText);
+                if (payload.Length <= SaltSizeBytes + IvSizeBytes)
                 {
-                    symmetricKey.BlockSize = 256;
-                    symmetricKey.Mode = CipherMode.CBC;
-                    symmetricKey.Padding = PaddingMode.PKCS7;
-                    using (var decryptor = symmetricKey.CreateDecryptor(keyBytes, ivStringBytes))
-                    {
-                        using (var memoryStream = new MemoryStream(cipherTextBytes))
-                        {
-                            using (var cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read))
-                            using (var streamReader = new StreamReader(cryptoStream, Encoding.UTF8))
-                            {
-                                return streamReader.ReadToEnd();
-                            }
-                        }
-                    }
+                    Debug.LogError("[Cryptor] Decrypt: payload is too short or corrupted.");
+                    return string.Empty;
                 }
+
+                byte[] salt = new byte[SaltSizeBytes];
+                byte[] iv = new byte[IvSizeBytes];
+                Buffer.BlockCopy(payload, 0, salt, 0, SaltSizeBytes);
+                Buffer.BlockCopy(payload, SaltSizeBytes, iv, 0, IvSizeBytes);
+
+                int cipherOffset = SaltSizeBytes + IvSizeBytes;
+                int cipherLength = payload.Length - cipherOffset;
+
+                using var keyDerivation = new Rfc2898DeriveBytes(
+                    passPhrase, salt, derivationIterations, HashAlgorithmName.SHA256);
+                byte[] key = keyDerivation.GetBytes(KeySizeBits / 8);
+
+                using var aes = Aes.Create();
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using var decryptor = aes.CreateDecryptor(key, iv);
+                using var memoryStream = new MemoryStream(payload, cipherOffset, cipherLength);
+                using var cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read);
+                using var reader = new StreamReader(cryptoStream, Encoding.UTF8);
+
+                return reader.ReadToEnd();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Cryptor] Decrypt failed (wrong pass phrase or corrupted data?): {e.Message}");
+                return string.Empty;
             }
         }
 
-        private static byte[] Generate256BitsOfRandomEntropy()
+        private static byte[] GenerateRandomBytes(int length)
         {
-            var randomBytes = new byte[32]; // 32 Bytes will give us 256 bits.
-            using (var rngCsp = new RNGCryptoServiceProvider())
-            {
-                // Fill the array with cryptographically secure random bytes.
-                rngCsp.GetBytes(randomBytes);
-            }
-            return randomBytes;
+            byte[] bytes = new byte[length];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(bytes);
+            return bytes;
         }
     }
 }

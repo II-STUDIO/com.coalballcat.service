@@ -1,84 +1,52 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace Coalballcat.Services
 {
     /// <summary>
-    /// Like PlayerPrefs of UnityEngine but marge for eaizy to use.
+    /// Thin convenience wrapper over <see cref="PlayerPrefs"/> with consistent
+    /// has-key handling, default values, and a bool helper.
     /// </summary>
-    public static class Pre
+    public static class Prefs
     {
-        public static string FindStringData(string key)
-        {
-            if (!PlayerPrefs.HasKey(key)) return "";
-            return PlayerPrefs.GetString(key);
-        }
+        public static string FindStringData(string key, string defaultValue = "")
+            => PlayerPrefs.GetString(key, defaultValue);
 
         public static void SaveStringData(string key, string value)
-        {
-            PlayerPrefs.SetString(key, value);
-        }
+            => PlayerPrefs.SetString(key, value);
 
-        public static bool FindBoolData(string key)
-        {
-            if (!PlayerPrefs.HasKey(key)) return false;
-
-            if (PlayerPrefs.GetString(key) == "true")
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
+        public static bool FindBoolData(string key, bool defaultValue = false)
+            => PlayerPrefs.HasKey(key) ? PlayerPrefs.GetInt(key) != 0 : defaultValue;
 
         public static void SaveBoolData(string key, bool value)
-        {
-            if (value)
-            {
-                PlayerPrefs.SetString(key, "true");
-            }
-            else
-            {
-                PlayerPrefs.SetString(key, "false");
-            }
-        }
+            => PlayerPrefs.SetInt(key, value ? 1 : 0);
 
-        public static int FindIntData(string key)
-        {
-            if (!PlayerPrefs.HasKey(key)) return 0;
-
-            return PlayerPrefs.GetInt(key, 0);
-        }
+        public static int FindIntData(string key, int defaultValue = 0)
+            => PlayerPrefs.GetInt(key, defaultValue);
 
         public static void SaveIntData(string key, int value)
-        {
-            PlayerPrefs.SetInt(key, value);
-        }
+            => PlayerPrefs.SetInt(key, value);
 
-        public static float FindFloatData(string key)
-        {
-            if (!PlayerPrefs.HasKey(key)) return 0;
-
-            return PlayerPrefs.GetFloat(key, 0);
-        }
+        public static float FindFloatData(string key, float defaultValue = 0f)
+            => PlayerPrefs.GetFloat(key, defaultValue);
 
         public static void SaveFloatData(string key, float value)
-        {
-            PlayerPrefs.SetFloat(key, value);
-        }
+            => PlayerPrefs.SetFloat(key, value);
 
         public static bool Has(string key)
-        {
-            return PlayerPrefs.HasKey(key);
-        }
+            => PlayerPrefs.HasKey(key);
 
         public static void DeleteData(string key)
         {
-            if (Has(key))
-            {
+            if (PlayerPrefs.HasKey(key))
                 PlayerPrefs.DeleteKey(key);
-            }
         }
+
+        /// <summary>Removes ALL stored PlayerPrefs keys. Use with care.</summary>
+        public static void DeleteAll()
+            => PlayerPrefs.DeleteAll();
+
+        /// <summary>Flushes pending changes to disk. Call after a batch of writes.</summary>
+        public static void Save()
+            => PlayerPrefs.Save();
     }
 }

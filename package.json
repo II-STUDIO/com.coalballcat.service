@@ -1,21 +1,34 @@
 {
     "name": "com.coalballcat.service",
-    "version": "1.0.5",
+    "version": "1.1.0",
+    "displayName": "Coal Ball Cat Service",
+    "description": "General-purpose runtime helper utilities for Unity games (PC & mobile): singletons, object pooling, a state machine, an event bus, fast math/collection helpers, data persistence, and UI components.",
+    "unity": "6000.0",
     "unityRelease": "62f1",
-    "displayName": "Coal ball cat service",
-    "description": "General service.",
     "keywords": [
-      "Services"
+        "services",
+        "utility",
+        "pooling",
+        "state-machine",
+        "events",
+        "ui"
     ],
     "category": "Services",
-    "unity": "6000.0",
+    "license": "MIT",
     "author": {
-      "name": "coalballcatstudio",
-      "email": "watchaphon40225@gmail.com"
+        "name": "coalballcatstudio",
+        "email": "watchaphon40225@gmail.com"
     },
+    "dependencies": {
+        "com.unity.ugui": "2.0.0",
+        "com.unity.mathematics": "1.3.2",
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+    },
+    "documentationUrl": "https://github.com/II-STUDIO/com.coalballcat.service",
+    "changelogUrl": "https://github.com/II-STUDIO/com.coalballcat.service/blob/main/CHANGELOG.md",
+    "licensesUrl": "https://github.com/II-STUDIO/com.coalballcat.service/blob/main/LICENSE.md",
     "repository": {
-      "url": "https://github.com/II-STUDIO/com.coalballcat.service.git",
-      "type": "git",
-      "revision": "6b783c5dfb5a72d73e2b0a70d1caf4a367c58805"
+        "url": "https://github.com/II-STUDIO/com.coalballcat.service.git",
+        "type": "git"
     }
 }

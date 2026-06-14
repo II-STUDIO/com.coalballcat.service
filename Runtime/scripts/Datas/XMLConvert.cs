@@ -4,35 +4,25 @@ using System.Xml.Serialization;
 namespace Coalballcat.Services
 {
     /// <summary>
-    /// Fire string and object serializer for mobile and pc data chace.
+    /// Simple string &lt;-&gt; object serializer (XML) for mobile and PC data caching.
     /// </summary>
     public static class XMLConvert
     {
-        /// <summary>
-        /// Serialize onject to string with XML serializer.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="toSerialize"></param>
-        /// <returns>String data value</returns>
+        /// <summary>Serialize an object to an XML string.</summary>
         public static string Serialize<T>(this T toSerialize)
         {
-            XmlSerializer xml = new XmlSerializer(typeof(T));
-            StringWriter writer = new StringWriter();
-            xml.Serialize(writer, toSerialize);
+            var serializer = new XmlSerializer(typeof(T));
+            using var writer = new StringWriter();
+            serializer.Serialize(writer, toSerialize);
             return writer.ToString();
         }
 
-        /// <summary>
-        /// Deserialize strong to object with XML serializer.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="id"></param>
-        /// <returns>Object that deserialized</returns>
-        public static T Deserialize<T>(this string id)
+        /// <summary>Deserialize an XML string back into an object of type <typeparamref name="T"/>.</summary>
+        public static T Deserialize<T>(this string data)
         {
-            XmlSerializer xml = new XmlSerializer(typeof(T));
-            StringReader reader = new StringReader(id);
-            return (T)xml.Deserialize(reader);
+            var serializer = new XmlSerializer(typeof(T));
+            using var reader = new StringReader(data);
+            return (T)serializer.Deserialize(reader);
         }
     }
 }

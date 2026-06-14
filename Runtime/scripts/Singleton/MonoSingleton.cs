@@ -2,50 +2,71 @@ using UnityEngine;
 
 namespace Coalballcat.Services
 {
-    public class MonoSingleton<Inherister> : MonoBehaviour where Inherister : MonoBehaviour
+    /// <summary>
+    /// Base class for a MonoBehaviour singleton.
+    /// Use the self-referencing pattern: <c>class Foo : MonoSingleton&lt;Foo&gt;</c>.
+    ///
+    /// - Accessing <see cref="Instance"/> finds an existing instance (including inactive),
+    ///   or auto-creates one unless the type is marked <see cref="NonAutoCreateSingletonAttribute"/>.
+    /// - Duplicate instances are destroyed automatically in <see cref="Awake"/>.
+    /// - Override <see cref="Persistent"/> to keep the instance across scene loads.
+    /// - Override <see cref="OnSingletonAwake"/> instead of <c>Awake</c> for init logic.
+    /// </summary>
+    public abstract class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     {
-        public static Inherister Instance
+        private static T _instance;
+
+        /// <summary>True if an instance currently exists (does not trigger a find/create).</summary>
+        public static bool HasInstance => _instance != null;
+
+        public static T Instance
         {
             get
             {
-                if (_isQuiting)
+                if (MonoSingletonHelper.IsQuitting)
                     return _instance;
 
-                if (!_instance)
-                    _instance = MonoSingletonHelper.FindInstance(_instance);
+                // Unity's overloaded null check also treats a destroyed instance as null,
+                // so a stale reference left over from a previous play session is re-resolved.
+                if (_instance == null)
+                    _instance = MonoSingletonHelper.FindOrCreate<T>();
 
                 return _instance;
             }
         }
 
-        private static Inherister _instance;
-        private static bool _isQuiting = false;
+        /// <summary>Override and return true to apply <c>DontDestroyOnLoad</c> to this singleton.</summary>
+        protected virtual bool Persistent => false;
 
         protected virtual void Awake()
         {
-            SetInstance();
-        }
-
-        public void SetInstance()
-        {
-            if (_instance)
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
                 return;
+            }
 
-            _instance = MonoSingletonHelper.GetInstance(gameObject, _instance);
+            _instance = (T)this;
+
+            // DontDestroyOnLoad only works on root objects.
+            if (Persistent && transform.parent == null)
+                DontDestroyOnLoad(gameObject);
+
+            OnSingletonAwake();
         }
 
-        /// <summary>
-        /// Check the status of this instance static object can't check null form Instance property because Instance property away find the validable access can check only this function.
-        /// </summary>
-        /// <returns>Ture if 'Instance' not be null</returns>
-        public static bool IsInstanceValidable
+        /// <summary>Called once when this object becomes the active singleton instance.</summary>
+        protected virtual void OnSingletonAwake() { }
+
+        protected virtual void OnDestroy()
         {
-            get => _instance != null;
+            if (_instance == this)
+                _instance = null;
         }
 
-        private void OnApplicationQuit()
+        protected virtual void OnApplicationQuit()
         {
-            _isQuiting = true;
+            MonoSingletonHelper.IsQuitting = true;
         }
     }
 }

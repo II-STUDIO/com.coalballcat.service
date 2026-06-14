@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Coalballcat.Services
 {
-    public class FastCameraScreen
+    public static class FastCameraScreen
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector2 ScreenCenter()
@@ -24,11 +24,13 @@ namespace Coalballcat.Services
         public static Vector3 ScreenToWorld(Camera cam, in Vector2 screenPos, float distance = 10f)
             => cam.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, distance));
 
+#if ENABLE_LEGACY_INPUT_MANAGER
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool RaycastMouseToWorldPlanePosition(Camera cam, out Vector3 target)
         {
             return RaycastScreenToWorldPlanePosition(cam, Input.mousePosition, out target);
         }
+#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool RaycastScreenToWorldPlanePosition(Camera cam, in Vector2 screenPos, out Vector3 target)
@@ -49,11 +51,13 @@ namespace Coalballcat.Services
             }
         }
 
+#if ENABLE_LEGACY_INPUT_MANAGER
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool RaycastMousePosition2D(Camera cam, out RaycastHit2D hit, int layerMask = Physics2D.DefaultRaycastLayers)
         {
             return Raycast2D(cam, Input.mousePosition, out hit, layerMask);
         }
+#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Raycast2D(Camera cam, in Vector2 screenPos, out RaycastHit2D hit, int layerMask = Physics2D.DefaultRaycastLayers)

@@ -17,7 +17,7 @@ namespace Coalballcat.Services
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FastLerp(float a, float b, float t)
-            => a + (b - a) * t;
+            => a + (b - a) * (t < 0f ? 0f : (t > 1f ? 1f : t));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FastInvLerp(float a, float b, float v)
@@ -35,16 +35,19 @@ namespace Coalballcat.Services
         public static bool Approximately(float a, float b, float eps = 0.0001f)
             => Mathf.Abs(a - b) < eps;
 
+        /// <summary>Returns true with the given probability in the 0..1 range.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Chance(float probability)
-            => Random.value <= probability;
+            => Random.value < probability;
 
+        /// <summary>Returns true <paramref name="percent"/>% of the time (percent in 0..100).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Chane(int probalility)
-            => Random.Range(0, 101) <= probalility;
+        public static bool Chance(int percent)
+            => Random.Range(0, 100) < percent;
 
+        /// <summary>Returns true with odds of <paramref name="weight"/> out of <paramref name="total"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Chane(int probalility, int totalChane)
-            => Random.Range(0, totalChane + 1) <= probalility;
+        public static bool Chance(int weight, int total)
+            => total > 0 && Random.Range(0, total) < weight;
     }
 }

@@ -11,6 +11,12 @@ namespace Coalballcat.Services
         private int _count;
 
         public int Count => _count;
+        public int Capacity => _buffer.Length;
+        public bool IsEmpty => _count == 0;
+        public bool IsFull => _count == _buffer.Length;
+
+        /// <summary>Gets the element at the given queue index (0 = front). See <see cref="GetAt"/>.</summary>
+        public T this[int index] => GetAt(index);
 
         public IndexBaseQueue(int capacity)
         {
@@ -79,6 +85,21 @@ namespace Coalballcat.Services
 
 
         /// <summary>
+        /// Removes and returns the front item if present; otherwise returns false.
+        /// </summary>
+        public bool TryDequeue(out T item)
+        {
+            if (_count == 0)
+            {
+                item = default;
+                return false;
+            }
+
+            item = Dequeue();
+            return true;
+        }
+
+        /// <summary>
         /// Returns item at front without removing.
         /// </summary>
         public T Peek()
@@ -87,6 +108,21 @@ namespace Coalballcat.Services
                 throw new InvalidOperationException("Queue is empty");
 
             return _buffer[_head];
+        }
+
+        /// <summary>
+        /// Returns the front item without removing it if present; otherwise returns false.
+        /// </summary>
+        public bool TryPeek(out T item)
+        {
+            if (_count == 0)
+            {
+                item = default;
+                return false;
+            }
+
+            item = _buffer[_head];
+            return true;
         }
 
         /// <summary>

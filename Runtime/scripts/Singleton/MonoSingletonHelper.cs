@@ -5,53 +5,39 @@ namespace Coalballcat.Services
     public static class MonoSingletonHelper
     {
         /// <summary>
-        /// Find global instance.
+        /// Set true while the application is quitting so singleton accessors stop resolving.
+        /// Lives here (a non-generic class) because <c>[RuntimeInitializeOnLoadMethod]</c>
+        /// cannot be declared inside the generic <see cref="MonoSingleton{T}"/>.
         /// </summary>
-        public static Inherister FindInstance<Inherister>(Inherister instance) where Inherister : MonoBehaviour
-        {
-            if (instance)
-                return instance;
+        public static bool IsQuitting { get; internal set; }
 
-            Inherister inherister = Object.FindFirstObjectByType<Inherister>(FindObjectsInactive.Include);
-
-            if (inherister == null)
-            {
-                string name = typeof(Inherister).Name;
-
-                bool isNonAutoCreate = typeof(Inherister).IsDefined(typeof(NonAutoCreateSingletonAttribute), false);
-                if (isNonAutoCreate)
-                {
-                    Debug.LogWarning($"The type of <{name}> not arrive or found");
-                    return null;
-                }
-
-                Debug.LogWarning($"The type of <{name}> not arrive or found -> auto generate one.");
-                return new GameObject(name + " - Singleton (Auto Create)").AddComponent<Inherister>();
-            }
-
-            return inherister;
-        }
+        // Reset shared state on play-mode start so the flag isn't carried over when
+        // entering Play Mode with "Reload Domain" disabled.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetState() => IsQuitting = false;
 
         /// <summary>
-        /// Get Instance of mono object.
+        /// Finds an existing instance of <typeparamref name="T"/> in the scene (including inactive
+        /// objects). If none exists, auto-creates one unless the type is marked
+        /// <see cref="NonAutoCreateSingletonAttribute"/>, in which case <c>null</c> is returned.
         /// </summary>
-        /// <typeparam name="Inherister"></typeparam>
-        /// <param name="gameObject"></param>
-        /// <param name="instance"></param>
-        /// <returns></returns>
-        public static Inherister GetInstance <Inherister>(GameObject gameObject, Inherister instance) where Inherister : MonoBehaviour
+        public static T FindOrCreate<T>() where T : MonoBehaviour
         {
-            Inherister inheriter = gameObject.GetComponent<Inherister>();
-
-            if (inheriter == null)
+            T instance = Object.FindFirstObjectByType<T>(FindObjectsInactive.Include);
+            if (instance != null)
                 return instance;
 
-            if (instance)
-                return instance;
+            string name = typeof(T).Name;
 
-            instance = inheriter;
+            if (typeof(T).IsDefined(typeof(NonAutoCreateSingletonAttribute), false))
+            {
+                Debug.LogWarning($"[MonoSingleton] No instance of <{name}> found, and it is marked " +
+                                 "[NonAutoCreateSingleton]. Returning null.");
+                return null;
+            }
 
-            return instance;
+            Debug.LogWarning($"[MonoSingleton] No instance of <{name}> found. Auto-creating one.");
+            return new GameObject($"{name} (Auto-Created Singleton)").AddComponent<T>();
         }
     }
 }

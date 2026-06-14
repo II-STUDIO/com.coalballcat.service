@@ -2,7 +2,7 @@ using Cysharp.Threading.Tasks;
 using System;
 using UnityEngine;
 
-namespace Coalballcat.Services.UIs
+namespace Coalballcat.Services.UI
 {
 
     public abstract class PanelAnimation : MonoBehaviour

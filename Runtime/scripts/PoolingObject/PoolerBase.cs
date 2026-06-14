@@ -179,15 +179,18 @@ namespace Coalballcat.Services
             pooledSet.Clear();
         }
 
-        // FIX: virtual so derived classes can properly override (not hide with 'new')
+        // virtual so derived classes can properly override (not hide with 'new')
         public virtual void Dispose()
         {
             Clear();
             mainParent = null;
-            PoolManager.Instance.UninitializePooler(this);
+
+            // Guard: PoolManager may already be gone during application/scene teardown.
+            if (PoolManager.HasInstance)
+                PoolManager.Instance.UninitializePooler(this);
         }
 
         public void DisposeWithoutUninitialize() => Clear();
-        void IPooler.DisposeWithoutUnitialize()  => DisposeWithoutUninitialize();
+        void IPooler.DisposeWithoutUninitialize() => DisposeWithoutUninitialize();
     }
 }

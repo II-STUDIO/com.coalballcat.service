@@ -2,7 +2,7 @@ namespace Coalballcat.Services
 {
     public interface IPooler
     {
-        void DisposeWithoutUnitialize();
+        void DisposeWithoutUninitialize();
     }
 
     public interface IMonoPooler : IPooler

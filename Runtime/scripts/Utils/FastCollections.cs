@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
@@ -46,11 +45,8 @@ namespace Coalballcat.Services
             list.RemoveAt(last);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void FastForEach<T>(this List<T> list, Action<T> action)
-        {
-            for (int i = 0, count = list.Count; i < count; i++)
-                action(list[i]);
-        }
+        // NOTE: A FastForEach(this List<T>, Action<T>) overload used to live here but was
+        // removed: it was ambiguous with FastLoop.FastForEach(this List<T>, ForAction<T>)
+        // (identical signature), which broke every lambda call site. Use FastLoop.FastForEach.
     }
 }

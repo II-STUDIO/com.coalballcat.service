@@ -1,34 +1,25 @@
-﻿// Copyright (C) 2015-2021 gamevanilla - All rights reserved.
-// This code can only be used under the standard Unity Asset Store End User License Agreement.
-// A Copy of the Asset Store EULA is available at http://unity3d.com/company/legal/as_terms.
-
 namespace Coalballcat.Services.UI
 {
     /// <summary>
-    /// A loopable selection slider.
+    /// Selection slider that wraps around: going past the last option returns to the
+    /// first, and vice versa.
     /// </summary>
     public class LoopableSelectionSlider : SelectionSlider
     {
         public override void OnPreviousButtonPressed()
         {
-            --currentIndex;
-            if (currentIndex < 0)
-            {
-                currentIndex = Options.Count - 1;
-            }
-
-            SetCurrentOptionLabel();
+            if (Count == 0) return;
+            int index = Index - 1;
+            if (index < 0) index = Count - 1;
+            ApplyIndex(index);
         }
 
         public override void OnNextButtonPressed()
         {
-            ++currentIndex;
-            if (currentIndex > Options.Count - 1)
-            {
-                currentIndex = 0;
-            }
-
-            SetCurrentOptionLabel();
+            if (Count == 0) return;
+            int index = Index + 1;
+            if (index > Count - 1) index = 0;
+            ApplyIndex(index);
         }
     }
 }

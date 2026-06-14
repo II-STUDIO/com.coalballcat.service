@@ -1,7 +1,7 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 
-namespace Coalballcat.Services.UIs
+namespace Coalballcat.Services.UI
 {
     public class Panel : MonoBehaviour
     {

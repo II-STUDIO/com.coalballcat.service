@@ -12,7 +12,7 @@ namespace Coalballcat.Services
         {
             int count = poolers.Count;
             for (int i = 0; i < count; i++)
-                poolers[i].DisposeWithoutUnitialize();
+                poolers[i].DisposeWithoutUninitialize();
 
             poolers.Clear();
         }
